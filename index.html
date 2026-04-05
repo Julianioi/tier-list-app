@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>专属排行榜生成器</title>
-    <!-- 引入 Tailwind CSS -->
+    <!-- 引入 Tailwind CSS (使用官方节点，该节点已在国内有较好加速) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 React 和 ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- 引入 Babel 使得浏览器能解析 JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- 引入 html2canvas 用于导出图片 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- 引入 React 和 ReactDOM (已替换为国内极速 Staticfile CDN) -->
+    <script crossorigin src="https://cdn.staticfile.net/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.staticfile.net/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <!-- 引入 Babel 使得浏览器能解析 JSX (已替换为国内极速 Staticfile CDN，解决加载慢的核心) -->
+    <script src="https://cdn.staticfile.net/babel-standalone/7.23.10/babel.min.js"></script>
+    <!-- 引入 html2canvas 用于导出图片 (已替换为国内极速 Staticfile CDN) -->
+    <script src="https://cdn.staticfile.net/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         /* 隐藏滚动条但保留滚动功能，让界面更清爽 */
@@ -491,7 +491,7 @@
                   <div className="pt-2 sm:pt-4">
                     <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 flex items-center text-gray-800 px-2 select-none">
                       <span className="bg-blue-100 text-blue-600 p-1.5 rounded-lg mr-2 shadow-sm">
-                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                       </span>
                       待分类图片库
                       <span className="ml-3 bg-white shadow-sm border border-gray-200 text-gray-600 py-0.5 px-3 rounded-full text-sm font-bold">
