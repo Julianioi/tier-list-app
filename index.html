@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>专属排行榜生成器</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -30,6 +30,26 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8; 
         }
+        /* 防止移动端长按弹出菜单和选择文字 */
+        .no-select {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: none; /* 阻止默认触摸事件，如滚动 */
+        }
+        /* 自定义拖拽占位符的样式 */
+        .touch-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.95;
+            transform: scale(1.05) rotate(-3deg);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-gray-200 text-gray-800 font-sans selection:bg-blue-200">
@@ -53,6 +73,18 @@
           const [dragOverId, setDragOverId] = useState(null);
           const [showClearModal, setShowClearModal] = useState(false);
           const fileInputRef = useRef(null);
+          
+          // 触摸拖拽相关的 state 和 ref
+          const [touchGhost, setTouchGhost] = useState(null);
+          const scrollTimeout = useRef(null);
+          const dropZonesRef = useRef({}); // 存储所有可放置区域的位置信息
+
+          // 收集放置区域信息
+          const registerDropZone = (id, element) => {
+              if (element) {
+                  dropZonesRef.current[id] = element;
+              }
+          };
 
           const handleFileUpload = (e) => {
             const files = Array.from(e.target.files);
@@ -68,16 +100,13 @@
             e.target.value = null; 
           };
 
+          // --- 桌面端 Drag & Drop (原生) ---
           const handleDragStart = (e, item, sourceId) => {
             setDragged({ item, sourceId });
-            // 设置一个透明的拖拽图像，防止默认的幽灵图像干扰我们的动效
-            const emptyImage = new Image();
-            emptyImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-            e.dataTransfer.setDragImage(emptyImage, 0, 0);
             e.dataTransfer.effectAllowed = 'move';
           };
 
-          const handleDragEnd = (e) => {
+          const handleDragEnd = () => {
             setDragged(null);
             setDragOverId(null);
           };
@@ -99,8 +128,119 @@
             e.preventDefault();
             setDragOverId(null);
             if (!dragged) return;
+            moveItem(dragged.item, dragged.sourceId, targetId);
+            // 关键修复：强制清除拖拽状态，防止图片落下后卡在半透明状态
+            setDragged(null); 
+          };
 
-            const { item, sourceId } = dragged;
+          // --- 移动端 Touch Events ---
+          const handleTouchStart = (e, item, sourceId) => {
+              // 延迟一小段时间以区分点击和长按拖拽 (可选，目前直接开始)
+              const touch = e.touches[0];
+              const target = e.target;
+              const rect = target.getBoundingClientRect();
+              
+              setDragged({ item, sourceId });
+              
+              // 创建幽灵元素
+              setTouchGhost({
+                  src: item.url,
+                  x: touch.clientX,
+                  y: touch.clientY,
+                  offsetX: touch.clientX - rect.left,
+                  offsetY: touch.clientY - rect.top,
+                  width: rect.width,
+                  height: rect.height
+              });
+              
+              // 振动反馈 (部分设备支持)
+              if (navigator.vibrate) {
+                  navigator.vibrate(50);
+              }
+          };
+
+          const handleTouchMove = (e) => {
+              if (!touchGhost || !dragged) return;
+              e.preventDefault(); // 阻止页面滚动
+
+              const touch = e.touches[0];
+              const clientX = touch.clientX;
+              const clientY = touch.clientY;
+
+              // 更新幽灵元素位置
+              setTouchGhost(prev => ({
+                  ...prev,
+                  x: clientX,
+                  y: clientY
+              }));
+
+              // 自动滚动 (当靠近边缘时)
+              handleEdgeScrolling(clientY);
+
+              // 判断当前悬浮在哪个区域之上
+              let currentOverId = null;
+              for (const [id, element] of Object.entries(dropZonesRef.current)) {
+                  if (!element) continue;
+                  const rect = element.getBoundingClientRect();
+                  if (
+                      clientX >= rect.left &&
+                      clientX <= rect.right &&
+                      clientY >= rect.top &&
+                      clientY <= rect.bottom
+                  ) {
+                      currentOverId = id;
+                      break;
+                  }
+              }
+
+              if (dragOverId !== currentOverId) {
+                  setDragOverId(currentOverId);
+              }
+          };
+
+          const handleTouchEnd = (e) => {
+              if (!dragged) return;
+              
+              clearTimeout(scrollTimeout.current);
+
+              if (dragOverId && dragOverId !== dragged.sourceId) {
+                  moveItem(dragged.item, dragged.sourceId, dragOverId);
+              }
+
+              setDragged(null);
+              setDragOverId(null);
+              setTouchGhost(null);
+          };
+
+          // 边缘自动滚动逻辑
+          const handleEdgeScrolling = (clientY) => {
+              const edgeSize = 60;
+              const maxScrollSpeed = 15;
+              const scrollY = window.scrollY;
+              const windowHeight = window.innerHeight;
+
+              clearTimeout(scrollTimeout.current);
+
+              if (clientY < edgeSize) {
+                  // 向上滚动
+                  const speed = maxScrollSpeed * (1 - clientY / edgeSize);
+                  if (scrollY > 0) {
+                      window.scrollBy(0, -speed);
+                      scrollTimeout.current = setTimeout(() => handleEdgeScrolling(clientY), 16);
+                  }
+              } else if (clientY > windowHeight - edgeSize) {
+                  // 向下滚动
+                  const speed = maxScrollSpeed * (1 - (windowHeight - clientY) / edgeSize);
+                  const maxScroll = document.documentElement.scrollHeight - windowHeight;
+                  if (scrollY < maxScroll) {
+                      window.scrollBy(0, speed);
+                      scrollTimeout.current = setTimeout(() => handleEdgeScrolling(clientY), 16);
+                  }
+              }
+          };
+
+          // --- 核心移动逻辑 ---
+          const moveItem = (item, sourceId, targetId) => {
             if (sourceId === targetId) return;
 
             if (sourceId === 'pool') {
@@ -124,7 +264,6 @@
                 )
               );
             }
-            setDragged(null);
           };
 
           const handleExport = async () => {
@@ -220,8 +359,9 @@
                           </div>
                           
                           <div 
+                            ref={(el) => registerDropZone(tier.id, el)}
                             className={`flex-1 p-2 sm:p-3 md:p-4 flex flex-wrap gap-2 sm:gap-3 items-start content-start transition-colors duration-200 ${
-                              dragOverId === tier.id ? 'bg-gray-300 shadow-inner' : 'bg-gray-50'
+                              dragOverId === tier.id ? 'bg-blue-100/60 shadow-inner' : 'bg-gray-50'
                             }`}
                             onDragOver={(e) => handleDragOver(e, tier.id)}
                             onDragLeave={handleDragLeave}
@@ -233,7 +373,11 @@
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, item, tier.id)}
                                 onDragEnd={handleDragEnd}
-                                className={`relative group cursor-grab active:cursor-grabbing hover:z-10 transition-transform duration-100 ${dragged && dragged.item.id === item.id ? 'opacity-50 scale-95' : 'opacity-100'}`}
+                                onTouchStart={(e) => handleTouchStart(e, item, tier.id)}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchCancel={handleTouchEnd}
+                                className={`relative group cursor-grab active:cursor-grabbing hover:z-10 transition-transform duration-100 no-select ${dragged && dragged.item.id === item.id ? 'opacity-50 scale-95 shadow-md' : 'opacity-100'}`}
                               >
                                 <img
                                   src={item.url}
@@ -261,6 +405,7 @@
                     </span>
                   </h2>
                   <div 
+                    ref={(el) => registerDropZone('pool', el)}
                     className={`border-2 border-dashed rounded-2xl p-4 sm:p-6 min-h-[160px] sm:min-h-[220px] flex flex-wrap gap-2 sm:gap-4 items-start content-start transition-all duration-300 ${
                       dragOverId === 'pool' ? 'border-blue-500 bg-blue-50/80 shadow-inner' : 'border-gray-300 bg-white/60 hover:bg-white/80'
                     }`}
@@ -284,7 +429,11 @@
                           draggable
                           onDragStart={(e) => handleDragStart(e, item, 'pool')}
                           onDragEnd={handleDragEnd}
-                          className={`relative group cursor-grab active:cursor-grabbing hover:z-10 transition-transform duration-100 ${dragged && dragged.item.id === item.id ? 'opacity-50 scale-95' : 'opacity-100'}`}
+                          onTouchStart={(e) => handleTouchStart(e, item, 'pool')}
+                          onTouchMove={handleTouchMove}
+                          onTouchEnd={handleTouchEnd}
+                          onTouchCancel={handleTouchEnd}
+                          className={`relative group cursor-grab active:cursor-grabbing hover:z-10 transition-transform duration-100 no-select ${dragged && dragged.item.id === item.id ? 'opacity-50 scale-95 shadow-md' : 'opacity-100'}`}
                         >
                           <img
                             src={item.url}
@@ -325,6 +474,21 @@
                 )}
 
               </div>
+              
+              {/* 移动端拖拽幽灵元素 */}
+              {touchGhost && (
+                  <img
+                      src={touchGhost.src}
+                      className="touch-ghost"
+                      style={{
+                          left: `${touchGhost.x - touchGhost.offsetX}px`,
+                          top: `${touchGhost.y - touchGhost.offsetY}px`,
+                          width: `${touchGhost.width}px`,
+                          height: `${touchGhost.height}px`,
+                      }}
+                      alt="dragging"
+                  />
+              )}
             </div>
           );
         }
